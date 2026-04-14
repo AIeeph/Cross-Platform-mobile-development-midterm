@@ -94,6 +94,14 @@ class MovieDetailScreen extends StatelessWidget {
     commentController.dispose();
   }
 
+  void _openPosterViewer(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (context) => _PosterViewerDialog(imageUrl: movie.imageUrl),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final similarMovies = repository.getSimilarMovies(movie);
@@ -121,17 +129,20 @@ class MovieDetailScreen extends StatelessWidget {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      CachedNetworkImage(
-                        imageUrl: movie.imageUrl,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.high,
-                        fadeInDuration: const Duration(milliseconds: 220),
-                        placeholder: (context, progress) =>
-                            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                        errorWidget: (context, url, error) => Container(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.broken_image_outlined),
+                      GestureDetector(
+                        onTap: () => _openPosterViewer(context),
+                        child: CachedNetworkImage(
+                          imageUrl: movie.imageUrl,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          fadeInDuration: const Duration(milliseconds: 220),
+                          placeholder: (context, progress) =>
+                              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          errorWidget: (context, url, error) => Container(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.broken_image_outlined),
+                          ),
                         ),
                       ),
                       DecoratedBox(
@@ -145,6 +156,11 @@ class MovieDetailScreen extends StatelessWidget {
                             ],
                           ),
                         ),
+                      ),
+                      const Positioned(
+                        top: 52,
+                        right: 16,
+                        child: Icon(Icons.zoom_in_outlined, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -282,6 +298,105 @@ class _ReviewTile extends StatelessWidget {
             Text(review.comment),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PosterViewerDialog extends StatefulWidget {
+  const _PosterViewerDialog({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  State<_PosterViewerDialog> createState() => _PosterViewerDialogState();
+}
+
+class _PosterViewerDialogState extends State<_PosterViewerDialog>
+    with SingleTickerProviderStateMixin {
+  late final TransformationController _transformationController;
+  late final AnimationController _zoomController;
+  Animation<Matrix4>? _zoomAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformationController = TransformationController();
+    _zoomController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    )
+      ..addListener(() {
+        if (_zoomAnimation != null) {
+          _transformationController.value = _zoomAnimation!.value;
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _zoomController.dispose();
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _toggleZoom() {
+    final current = _transformationController.value;
+    final isZoomed = current != Matrix4.identity();
+    final target = isZoomed
+        ? Matrix4.identity()
+        : (Matrix4.identity()..scaleByDouble(2.2, 2.2, 2.2, 1));
+
+    _zoomAnimation = Matrix4Tween(
+      begin: _transformationController.value,
+      end: target,
+    ).animate(CurvedAnimation(parent: _zoomController, curve: Curves.easeOutCubic));
+
+    _zoomController.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog.fullscreen(
+      backgroundColor: Colors.black,
+      child: Stack(
+        children: [
+          GestureDetector(
+            onDoubleTap: _toggleZoom,
+            child: InteractiveViewer(
+              transformationController: _transformationController,
+              minScale: 1,
+              maxScale: 4,
+              boundaryMargin: const EdgeInsets.all(24),
+              child: Center(
+                child: CachedNetworkImage(
+                  imageUrl: widget.imageUrl,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 38,
+            right: 14,
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Colors.white),
+            ),
+          ),
+          const Positioned(
+            bottom: 18,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                'Pinch to zoom • Drag to pan • Double tap to toggle zoom',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

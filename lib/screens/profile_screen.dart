@@ -38,8 +38,26 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 20),
               _ProfileTile(title: 'Watchlist items', value: appState.watchlistCount.toString()),
               _ProfileTile(title: 'Watched titles', value: appState.watchedCount.toString()),
+              _ProfileTile(title: 'Current streak', value: '${appState.currentStreakDays} days'),
+              _ProfileTile(title: 'Longest streak', value: '${appState.longestStreakDays} days'),
               _ProfileTile(title: 'Reviews written', value: appState.totalReviewsCount.toString()),
               _ProfileTile(title: 'Saved watch plans', value: appState.plans.length.toString()),
+              const SizedBox(height: 18),
+              Text('Achievements', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              ...appState.achievements.map(
+                (achievement) => Card(
+                  child: ListTile(
+                    leading: Icon(
+                      achievement.unlocked ? Icons.emoji_events : Icons.lock_outline,
+                      color: achievement.unlocked ? Colors.amber[700] : null,
+                    ),
+                    title: Text(achievement.title),
+                    subtitle: Text(achievement.description),
+                    trailing: Text('${achievement.progress}/${achievement.target}'),
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: appState.toggleTheme,

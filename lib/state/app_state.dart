@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 
 import '../data/mock_reviews.dart';
+import '../models/achievement.dart';
 import '../models/movie.dart';
 import '../models/review.dart';
 import '../models/watch_plan.dart';
@@ -11,6 +12,8 @@ class AppState extends ChangeNotifier {
   String _username = '';
   final Set<String> _watchlist = <String>{};
   final Set<String> _watched = <String>{};
+  final Map<String, DateTime> _watchedAtByMovie = <String, DateTime>{};
+  final Map<String, int> _watchedGenreCounts = <String, int>{};
   final Map<String, int> _watchPartySizes = <String, int>{};
   final List<WatchPlan> _plans = <WatchPlan>[];
   bool _hideWatched = false;
@@ -24,8 +27,11 @@ class AppState extends ChangeNotifier {
   String get username => _username;
   int get watchlistCount => _watchlist.length;
   int get watchedCount => _watched.length;
-  int get totalReviewsCount =>
-      _reviews.values.fold<int>(0, (sum, items) => sum + items.length);
+  int get watchedGenresCount => _watchedGenreCounts.values.where((count) => count > 0).length;
+  int get currentStreakDays => _computeCurrentStreak();
+  int get longestStreakDays => _computeLongestStreak();
+  List<Achievement> get achievements => _buildAchievements();
+  int get totalReviewsCount => _reviews.values.fold<int>(0, (sum, items) => sum + items.length);
   List<WatchPlan> get plans => List<WatchPlan>.unmodifiable(_plans);
   bool get hideWatched => _hideWatched;
   String? get lastWatchedId => _lastWatchedId;
@@ -91,11 +97,15 @@ class AppState extends ChangeNotifier {
   void toggleWatched(Movie movie) {
     if (_watched.contains(movie.id)) {
       _watched.remove(movie.id);
+      _watchedAtByMovie.remove(movie.id);
+      _decrementGenreCount(movie.genre);
       if (_lastWatchedId == movie.id) {
         _lastWatchedId = null;
       }
     } else {
       _watched.add(movie.id);
+      _watchedAtByMovie[movie.id] = DateTime.now();
+      _incrementGenreCount(movie.genre);
       _lastWatchedId = movie.id;
     }
     notifyListeners();
@@ -138,5 +148,97 @@ class AppState extends ChangeNotifier {
       ),
     );
     notifyListeners();
+  }
+
+  void _incrementGenreCount(String genre) {
+    _watchedGenreCounts[genre] = (_watchedGenreCounts[genre] ?? 0) + 1;
+  }
+
+  void _decrementGenreCount(String genre) {
+    final current = _watchedGenreCounts[genre] ?? 0;
+    if (current <= 1) {
+      _watchedGenreCounts.remove(genre);
+    } else {
+      _watchedGenreCounts[genre] = current - 1;
+    }
+  }
+
+  int _computeCurrentStreak() {
+    if (_watchedAtByMovie.isEmpty) {
+      return 0;
+    }
+
+    final days = _watchedAtByMovie.values.map(_startOfDay).toSet();
+    var cursor = _startOfDay(DateTime.now());
+    var streak = 0;
+
+    while (days.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  int _computeLongestStreak() {
+    if (_watchedAtByMovie.isEmpty) {
+      return 0;
+    }
+
+    final sortedDays = _watchedAtByMovie.values.map(_startOfDay).toSet().toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    var best = 1;
+    var run = 1;
+    for (var i = 1; i < sortedDays.length; i++) {
+      final diff = sortedDays[i].difference(sortedDays[i - 1]).inDays;
+      if (diff == 1) {
+        run++;
+        if (run > best) {
+          best = run;
+        }
+      } else {
+        run = 1;
+      }
+    }
+    return best;
+  }
+
+  DateTime _startOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  List<Achievement> _buildAchievements() {
+    return [
+      Achievement(
+        title: 'First Watch',
+        description: 'Watch your first title',
+        progress: watchedCount,
+        target: 1,
+      ),
+      Achievement(
+        title: 'Movie Explorer',
+        description: 'Watch 5 titles',
+        progress: watchedCount,
+        target: 5,
+      ),
+      Achievement(
+        title: 'Genre Hopper',
+        description: 'Watch 4 different genres',
+        progress: watchedGenresCount,
+        target: 4,
+      ),
+      Achievement(
+        title: 'Streak Starter',
+        description: '3-day watching streak',
+        progress: currentStreakDays,
+        target: 3,
+      ),
+      Achievement(
+        title: 'Streak Master',
+        description: '7-day longest streak',
+        progress: longestStreakDays,
+        target: 7,
+      ),
+    ];
   }
 }

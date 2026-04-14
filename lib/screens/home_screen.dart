@@ -8,6 +8,7 @@ import '../models/movie.dart';
 import '../state/app_state.dart';
 import '../widgets/genre_card.dart';
 import '../widgets/main_bottom_nav.dart';
+import '../widgets/mood_wheel_picker.dart';
 import '../widgets/movie_card.dart';
 import '../widgets/movie_quick_sheet.dart';
 import 'watch_planner_screen.dart';
@@ -74,14 +75,24 @@ class _HomeScreenState extends State<HomeScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      constraints: const BoxConstraints(maxWidth: 540),
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return MovieQuickSheet(
-          movie: movie,
-          appState: widget.appState,
-          onOpenDetails: () {
-            Navigator.of(context).pop();
-            widget.onOpenMovie(movie.id);
+        return DraggableScrollableSheet(
+          snap: true,
+          initialChildSize: 0.58,
+          minChildSize: 0.34,
+          maxChildSize: 0.94,
+          snapSizes: const [0.34, 0.58, 0.94],
+          builder: (context, scrollController) {
+            return MovieQuickSheet(
+              movie: movie,
+              appState: widget.appState,
+              scrollController: scrollController,
+              onOpenDetails: () {
+                Navigator.of(context).pop();
+                widget.onOpenMovie(movie.id);
+              },
+            );
           },
         );
       },
@@ -183,24 +194,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _SectionTitle(
                     title: 'Smart Controls',
-                    subtitle: 'Mood filters + surprise pick',
+                    subtitle: 'Mood wheel + smart filters',
+                  ),
+                  const SizedBox(height: 10),
+                  MoodWheelPicker(
+                    moods: _moodGenres.keys.toList(),
+                    selectedMood: _selectedMood,
+                    onChanged: (mood) {
+                      setState(() {
+                        _selectedMood = mood;
+                      });
+                    },
                   ),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      ..._moodGenres.keys.map(
-                        (mood) => ChoiceChip(
-                          label: Text(mood),
-                          selected: _selectedMood == mood,
-                          onSelected: (_) {
-                            setState(() {
-                              _selectedMood = _selectedMood == mood ? null : mood;
-                            });
-                          },
-                        ),
-                      ),
                       FilterChip(
                         label: const Text('Hide watched'),
                         selected: widget.appState.hideWatched,
