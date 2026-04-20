@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/movie_repository.dart';
 import 'screens/genre_screen.dart';
@@ -10,25 +11,45 @@ import 'screens/profile_screen.dart';
 import 'screens/watchlist_screen.dart';
 import 'state/app_state.dart';
 
-void main() {
-  runApp(const StreamyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final sharedPreferences = await SharedPreferences.getInstance();
+  runApp(StreamyApp(sharedPreferences: sharedPreferences));
 }
 
 class StreamyApp extends StatefulWidget {
-  const StreamyApp({super.key});
+  const StreamyApp({
+    super.key,
+    required this.sharedPreferences,
+  });
+
+  final SharedPreferences sharedPreferences;
 
   @override
   State<StreamyApp> createState() => _StreamyAppState();
 }
 
 class _StreamyAppState extends State<StreamyApp> {
-  final AppState _appState = AppState();
+  late final AppState _appState;
   final MovieRepository _repository = MovieRepository();
   late final GoRouter _router;
+
+  String _routeForTab(int index) {
+    switch (index) {
+      case 1:
+        return '/favourites';
+      case 2:
+        return '/profile';
+      default:
+        return '/';
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _appState = AppState(sharedPreferences: widget.sharedPreferences);
+
     _router = GoRouter(
       refreshListenable: _appState,
       redirect: (context, state) {
@@ -37,7 +58,7 @@ class _StreamyAppState extends State<StreamyApp> {
           return '/login';
         }
         if (_appState.isLoggedIn && loggingIn) {
-          return '/';
+          return _routeForTab(_appState.selectedTabIndex);
         }
         return null;
       },
@@ -47,7 +68,7 @@ class _StreamyAppState extends State<StreamyApp> {
           builder: (context, state) {
             return LoginScreen(
               appState: _appState,
-              onSuccess: () => context.go('/'),
+              onSuccess: () => context.go(_routeForTab(_appState.selectedTabIndex)),
             );
           },
         ),

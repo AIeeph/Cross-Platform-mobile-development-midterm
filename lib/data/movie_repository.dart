@@ -2,32 +2,37 @@
 
 import '../models/genre.dart';
 import '../models/movie.dart';
+import '../models/movie_feed.dart';
 import 'mock_movies.dart';
 
 class MovieRepository {
+  final MovieFeed _feed = MovieFeed.fromJson(mockMovieFeedJson);
+
+  List<Movie> get _movies => _feed.results;
+
   List<Movie> getAllSync() {
-    return mockMovies;
+    return _movies;
   }
 
   Future<List<Movie>> fetchAllMovies() async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
-    return mockMovies;
+    return _movies;
   }
 
   Future<List<Movie>> fetchTrendingMovies() async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
-    return mockMovies.where((movie) => movie.isTrending).toList();
+    return _movies.where((movie) => movie.isTrending).toList();
   }
 
   Future<List<Movie>> fetchRecommendedShows() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
-    return mockMovies.where((movie) => movie.isSeries).toList();
+    return _movies.where((movie) => movie.isSeries).toList();
   }
 
   Future<List<Genre>> fetchGenres() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     final genres = <String>{};
-    for (final movie in mockMovies) {
+    for (final movie in _movies) {
       genres.add(movie.genre);
     }
 
@@ -35,7 +40,7 @@ class MovieRepository {
   }
 
   Movie? getMovieById(String id) {
-    for (final movie in mockMovies) {
+    for (final movie in _movies) {
       if (movie.id == id) {
         return movie;
       }
@@ -44,19 +49,19 @@ class MovieRepository {
   }
 
   List<Movie> getSimilarMovies(Movie source) {
-    return mockMovies
+    return _movies
         .where((movie) => movie.id != source.id && movie.genre == source.genre)
         .take(4)
         .toList();
   }
 
   String _genreImage(String genre) {
-    for (final movie in mockMovies) {
+    for (final movie in _movies) {
       if (movie.genre == genre) {
         return movie.imageUrl;
       }
     }
-    return mockMovies.first.imageUrl;
+    return _movies.first.imageUrl;
   }
 }
 

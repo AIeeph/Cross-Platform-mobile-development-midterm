@@ -18,7 +18,10 @@ class ProfileScreen extends StatelessWidget {
       builder: (context, _) {
         return Scaffold(
           appBar: AppBar(title: const Text('Profile')),
-          bottomNavigationBar: const MainBottomNav(currentIndex: 2),
+          bottomNavigationBar: MainBottomNav(
+            currentIndex: 2,
+            onSelectedTab: appState.setSelectedTabIndex,
+          ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [

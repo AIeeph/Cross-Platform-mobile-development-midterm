@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/mock_reviews.dart';
 import '../models/achievement.dart';
@@ -7,9 +8,24 @@ import '../models/review.dart';
 import '../models/watch_plan.dart';
 
 class AppState extends ChangeNotifier {
+  AppState({required SharedPreferences sharedPreferences})
+      : _sharedPreferences = sharedPreferences {
+    _restorePreferences();
+  }
+
+  static const _prefSelectedTabKey = 'selectedTabIndex';
+  static const _prefSearchHistoryKey = 'searchHistory';
+  static const _prefMoodKey = 'selectedMood';
+
+  final SharedPreferences _sharedPreferences;
+
   ThemeMode _themeMode = ThemeMode.dark;
   bool _isLoggedIn = false;
   String _username = '';
+  int _selectedTabIndex = 0;
+  final List<String> _recentSearches = <String>[];
+  String? _savedMood;
+
   final Set<String> _watchlist = <String>{};
   final Set<String> _watched = <String>{};
   final Map<String, DateTime> _watchedAtByMovie = <String, DateTime>{};
@@ -25,6 +41,10 @@ class AppState extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   bool get isLoggedIn => _isLoggedIn;
   String get username => _username;
+  int get selectedTabIndex => _selectedTabIndex;
+  List<String> get recentSearches => List<String>.unmodifiable(_recentSearches);
+  String? get savedMood => _savedMood;
+
   int get watchlistCount => _watchlist.length;
   int get watchedCount => _watched.length;
   int get watchedGenresCount => _watchedGenreCounts.values.where((count) => count > 0).length;
@@ -35,6 +55,48 @@ class AppState extends ChangeNotifier {
   List<WatchPlan> get plans => List<WatchPlan>.unmodifiable(_plans);
   bool get hideWatched => _hideWatched;
   String? get lastWatchedId => _lastWatchedId;
+
+  void _restorePreferences() {
+    _selectedTabIndex = _sharedPreferences.getInt(_prefSelectedTabKey) ?? 0;
+    final history = _sharedPreferences.getStringList(_prefSearchHistoryKey) ?? <String>[];
+    _recentSearches
+      ..clear()
+      ..addAll(history);
+    _savedMood = _sharedPreferences.getString(_prefMoodKey);
+  }
+
+  void setSelectedTabIndex(int index) {
+    _selectedTabIndex = index;
+    _sharedPreferences.setInt(_prefSelectedTabKey, index);
+    notifyListeners();
+  }
+
+  void addRecentSearch(String query) {
+    final normalized = query.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    _recentSearches.remove(normalized);
+    _recentSearches.insert(0, normalized);
+
+    if (_recentSearches.length > 8) {
+      _recentSearches.removeRange(8, _recentSearches.length);
+    }
+
+    _sharedPreferences.setStringList(_prefSearchHistoryKey, _recentSearches);
+    notifyListeners();
+  }
+
+  void setSavedMood(String? mood) {
+    _savedMood = mood;
+    if (mood == null) {
+      _sharedPreferences.remove(_prefMoodKey);
+    } else {
+      _sharedPreferences.setString(_prefMoodKey, mood);
+    }
+    notifyListeners();
+  }
 
   void toggleTheme() {
     _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;

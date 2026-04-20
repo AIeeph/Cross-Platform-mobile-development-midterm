@@ -27,7 +27,10 @@ class WatchlistScreen extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(title: const Text('Favourites Movies')),
-          bottomNavigationBar: const MainBottomNav(currentIndex: 1),
+          bottomNavigationBar: MainBottomNav(
+            currentIndex: 1,
+            onSelectedTab: appState.setSelectedTabIndex,
+          ),
           body: watchlist.isEmpty
               ? const Center(
                   child: Text('Your favourites list is empty'),

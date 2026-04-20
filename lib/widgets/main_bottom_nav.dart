@@ -5,9 +5,11 @@ class MainBottomNav extends StatelessWidget {
   const MainBottomNav({
     super.key,
     required this.currentIndex,
+    this.onSelectedTab,
   });
 
   final int currentIndex;
+  final ValueChanged<int>? onSelectedTab;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +25,7 @@ class MainBottomNav extends StatelessWidget {
         NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
       ],
       onDestinationSelected: (index) {
+        onSelectedTab?.call(index);
         switch (index) {
           case 0:
             context.go('/');

@@ -41,14 +41,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final Random _random = Random();
+  final TextEditingController _searchController = TextEditingController();
+
   late Future<_HomeData> _homeFuture;
   String? _selectedGenre;
   String? _selectedMood;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    _selectedMood = widget.appState.savedMood;
     _homeFuture = _loadHomeData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<_HomeData> _loadHomeData() async {
@@ -69,6 +79,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openDrawer() {
     _scaffoldKey.currentState?.openEndDrawer();
+  }
+
+  void _startSearch(String value) {
+    final query = value.trim();
+    if (query.isEmpty) {
+      return;
+    }
+    setState(() {
+      _searchQuery = query;
+      _searchController.text = query;
+    });
+    widget.appState.addRecentSearch(query);
   }
 
   Future<void> _showBottomSheet(Movie movie) async {
@@ -114,6 +136,11 @@ class _HomeScreenState extends State<HomeScreen> {
       result = result.where((movie) => allowedGenres.contains(movie.genre)).toList();
     }
 
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((movie) => movie.title.toLowerCase().contains(q)).toList();
+    }
+
     if (widget.appState.hideWatched) {
       result = result.where((movie) => !widget.appState.isWatched(movie.id)).toList();
     }
@@ -157,7 +184,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          bottomNavigationBar: const MainBottomNav(currentIndex: 0),
+          bottomNavigationBar: MainBottomNav(
+            currentIndex: 0,
+            onSelectedTab: widget.appState.setSelectedTabIndex,
+          ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: _openDrawer,
             icon: const Icon(Icons.playlist_add_check_circle_outlined),
@@ -193,6 +223,49 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   _SectionTitle(
+                    title: 'Search & Preferences',
+                    subtitle: 'Chapter 10: persisted tab, mood and search history',
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            hintText: 'Search by movie title',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                          onSubmitted: _startSearch,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () => _startSearch(_searchController.text),
+                        icon: const Icon(Icons.search),
+                      ),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.history),
+                        onSelected: _startSearch,
+                        itemBuilder: (context) {
+                          final history = widget.appState.recentSearches;
+                          if (history.isEmpty) {
+                            return const [PopupMenuItem(value: '', child: Text('No history yet'))];
+                          }
+                          return history
+                              .map((item) => PopupMenuItem(value: item, child: Text(item)))
+                              .toList();
+                        },
+                      ),
+                    ],
+                  ),
+                  if (_searchQuery.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('Active search: "$_searchQuery"'),
+                  ],
+                  const SizedBox(height: 16),
+                  _SectionTitle(
                     title: 'Smart Controls',
                     subtitle: 'Mood wheel + smart filters',
                   ),
@@ -204,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       setState(() {
                         _selectedMood = mood;
                       });
+                      widget.appState.setSavedMood(mood);
                     },
                   ),
                   const SizedBox(height: 10),
