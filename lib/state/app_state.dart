@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/mock_reviews.dart';
@@ -16,6 +18,10 @@ class AppState extends ChangeNotifier {
   static const _prefSelectedTabKey = 'selectedTabIndex';
   static const _prefSearchHistoryKey = 'searchHistory';
   static const _prefMoodKey = 'selectedMood';
+  static const _prefThemeModeKey = 'themeMode';
+  static const _prefFavouritesJsonKey = 'favouritesJson';
+  static const _prefIsLoggedInKey = 'isLoggedIn';
+  static const _prefUsernameKey = 'username';
 
   final SharedPreferences _sharedPreferences;
 
@@ -63,6 +69,17 @@ class AppState extends ChangeNotifier {
       ..clear()
       ..addAll(history);
     _savedMood = _sharedPreferences.getString(_prefMoodKey);
+    _isLoggedIn = _sharedPreferences.getBool(_prefIsLoggedInKey) ?? false;
+    _username = _sharedPreferences.getString(_prefUsernameKey) ?? '';
+
+    final savedTheme = _sharedPreferences.getString(_prefThemeModeKey);
+    if (savedTheme == ThemeMode.light.name) {
+      _themeMode = ThemeMode.light;
+    } else if (savedTheme == ThemeMode.dark.name) {
+      _themeMode = ThemeMode.dark;
+    }
+
+    _restoreFavouritesFromJson();
   }
 
   void setSelectedTabIndex(int index) {
@@ -100,6 +117,7 @@ class AppState extends ChangeNotifier {
 
   void toggleTheme() {
     _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    _sharedPreferences.setString(_prefThemeModeKey, _themeMode.name);
     notifyListeners();
   }
 
@@ -110,6 +128,8 @@ class AppState extends ChangeNotifier {
     }
     _username = trimmed;
     _isLoggedIn = true;
+    _sharedPreferences.setBool(_prefIsLoggedInKey, true);
+    _sharedPreferences.setString(_prefUsernameKey, _username);
     notifyListeners();
     return true;
   }
@@ -117,6 +137,8 @@ class AppState extends ChangeNotifier {
   void logout() {
     _isLoggedIn = false;
     _username = '';
+    _sharedPreferences.setBool(_prefIsLoggedInKey, false);
+    _sharedPreferences.remove(_prefUsernameKey);
     notifyListeners();
   }
 
@@ -139,12 +161,14 @@ class AppState extends ChangeNotifier {
   void addToWatchlist(Movie movie, {int partySize = 1}) {
     _watchlist.add(movie.id);
     _watchPartySizes[movie.id] = partySize;
+    _saveFavouritesToJson();
     notifyListeners();
   }
 
   void removeFromWatchlist(Movie movie) {
     _watchlist.remove(movie.id);
     _watchPartySizes.remove(movie.id);
+    _saveFavouritesToJson();
     notifyListeners();
   }
 
@@ -181,6 +205,7 @@ class AppState extends ChangeNotifier {
   void clearWatchlist() {
     _watchlist.clear();
     _watchPartySizes.clear();
+    _saveFavouritesToJson();
     notifyListeners();
   }
 
@@ -210,6 +235,42 @@ class AppState extends ChangeNotifier {
       ),
     );
     notifyListeners();
+  }
+
+  void _saveFavouritesToJson() {
+    final payload = <String, dynamic>{
+      'ids': _watchlist.toList(),
+      'partySizes': _watchPartySizes,
+    };
+    _sharedPreferences.setString(_prefFavouritesJsonKey, jsonEncode(payload));
+  }
+
+  void _restoreFavouritesFromJson() {
+    final raw = _sharedPreferences.getString(_prefFavouritesJsonKey);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final ids = (decoded['ids'] as List<dynamic>? ?? <dynamic>[]).map((e) => e.toString()).toList();
+      final sizes = decoded['partySizes'] as Map<String, dynamic>? ?? <String, dynamic>{};
+
+      _watchlist
+        ..clear()
+        ..addAll(ids);
+
+      _watchPartySizes
+        ..clear()
+        ..addAll(
+          sizes.map(
+            (key, value) => MapEntry(key, value is int ? value : int.tryParse(value.toString()) ?? 1),
+          ),
+        );
+    } catch (_) {
+      _watchlist.clear();
+      _watchPartySizes.clear();
+    }
   }
 
   void _incrementGenreCount(String genre) {
