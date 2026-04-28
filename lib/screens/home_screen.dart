@@ -1,9 +1,11 @@
-﻿import 'dart:math';
+﻿import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../data/movie_repository.dart';
 import '../models/genre.dart';
+import '../models/live_title.dart';
 import '../models/movie.dart';
 import '../state/app_state.dart';
 import '../widgets/genre_card.dart';
@@ -42,8 +44,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final Random _random = Random();
   final TextEditingController _searchController = TextEditingController();
+  final StreamController<String> _searchStreamController = StreamController<String>.broadcast();
 
   late Future<_HomeData> _homeFuture;
+  late Future<List<LiveTitle>> _liveTitlesFuture;
   String? _selectedGenre;
   String? _selectedMood;
   String _searchQuery = '';
@@ -53,10 +57,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _selectedMood = widget.appState.savedMood;
     _homeFuture = _loadHomeData();
+    _liveTitlesFuture = widget.repository.fetchLiveTrendingTitles();
+    _searchStreamController.stream.listen(_onSearchStreamChanged);
   }
 
   @override
   void dispose() {
+    _searchStreamController.close();
     _searchController.dispose();
     super.dispose();
   }
@@ -81,16 +88,23 @@ class _HomeScreenState extends State<HomeScreen> {
     _scaffoldKey.currentState?.openEndDrawer();
   }
 
+  void _onSearchStreamChanged(String value) {
+    final query = value.trim();
+    setState(() {
+      _searchQuery = query;
+    });
+    if (query.isNotEmpty) {
+      widget.appState.addRecentSearch(query);
+    }
+  }
+
   void _startSearch(String value) {
     final query = value.trim();
     if (query.isEmpty) {
       return;
     }
-    setState(() {
-      _searchQuery = query;
-      _searchController.text = query;
-    });
-    widget.appState.addRecentSearch(query);
+    _searchController.text = query;
+    _searchStreamController.add(query);
   }
 
   Future<void> _showBottomSheet(Movie movie) async {
@@ -159,6 +173,66 @@ class _HomeScreenState extends State<HomeScreen> {
     _showBottomSheet(picked);
   }
 
+  Future<void> _openLiveTitleSheet(LiveTitle title) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          minChildSize: 0.45,
+          maxChildSize: 0.95,
+          snap: true,
+          snapSizes: const [0.45, 0.7, 0.95],
+          builder: (context, scrollController) {
+            return SafeArea(
+              top: false,
+              child: Material(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: title.imageUrl.isEmpty
+                          ? const SizedBox(
+                              height: 260,
+                              child: ColoredBox(
+                                color: Colors.black12,
+                                child: Center(child: Icon(Icons.image_not_supported_outlined, size: 36)),
+                              ),
+                            )
+                          : Image.network(title.imageUrl, height: 260, fit: BoxFit.cover),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(title.name, style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Chip(label: Text(title.kind)),
+                        Chip(label: Text('Rating ${title.rating.toStringAsFixed(1)}')),
+                        ...title.genres.take(3).map((genre) => Chip(label: Text(genre))),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      title.summary.isEmpty ? 'No description available for this title yet.' : title.summary,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -222,9 +296,9 @@ class _HomeScreenState extends State<HomeScreen> {
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  _SectionTitle(
+                  const _SectionTitle(
                     title: 'Search & Preferences',
-                    subtitle: 'Chapter 10: persisted tab, mood and search history',
+                    subtitle: 'Stream search with saved history',
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -237,6 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             hintText: 'Search by movie title',
                             prefixIcon: Icon(Icons.search),
                           ),
+                          onChanged: (value) => _searchStreamController.add(value),
                           onSubmitted: _startSearch,
                         ),
                       ),
@@ -253,9 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (history.isEmpty) {
                             return const [PopupMenuItem(value: '', child: Text('No history yet'))];
                           }
-                          return history
-                              .map((item) => PopupMenuItem(value: item, child: Text(item)))
-                              .toList();
+                          return history.map((item) => PopupMenuItem(value: item, child: Text(item))).toList();
                         },
                       ),
                     ],
@@ -265,9 +338,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text('Active search: "$_searchQuery"'),
                   ],
                   const SizedBox(height: 16),
-                  _SectionTitle(
+                  const _SectionTitle(
                     title: 'Smart Controls',
-                    subtitle: 'Mood wheel + smart filters',
+                    subtitle: 'Mood and filter controls',
                   ),
                   const SizedBox(height: 10),
                   MoodWheelPicker(
@@ -299,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (lastWatched != null) ...[
                     const SizedBox(height: 16),
-                    _SectionTitle(
+                    const _SectionTitle(
                       title: 'Continue Watching',
                       subtitle: 'Resume your last watched title',
                     ),
@@ -311,7 +384,71 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  _SectionTitle(
+                  const _SectionTitle(
+                    title: 'Live Spotlight',
+                    subtitle: 'Live titles from remote feed',
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder<List<LiveTitle>>(
+                    future: _liveTitlesFuture,
+                    builder: (context, liveSnapshot) {
+                      if (liveSnapshot.connectionState != ConnectionState.done) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (!liveSnapshot.hasData || liveSnapshot.data!.isEmpty) {
+                        return const Text('Live feed is temporarily unavailable');
+                      }
+
+                      final liveTitles = liveSnapshot.data!;
+                      return SizedBox(
+                        height: 250,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: liveTitles.length,
+                          separatorBuilder: (context, index) => const SizedBox(width: 12),
+                          itemBuilder: (context, index) {
+                            final title = liveTitles[index];
+                            return SizedBox(
+                              width: 240,
+                              child: Card(
+                                clipBehavior: Clip.antiAlias,
+                                child: InkWell(
+                                  onTap: () => _openLiveTitleSheet(title),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: title.imageUrl.isEmpty
+                                            ? const ColoredBox(
+                                                color: Colors.black12,
+                                                child: Center(child: Icon(Icons.image_not_supported_outlined)),
+                                              )
+                                            : Image.network(title.imageUrl, width: double.infinity, fit: BoxFit.cover),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(10),
+                                        child: Text(
+                                          title.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const _SectionTitle(
                     title: 'Trending Movies',
                     subtitle: 'Tap any card for quick actions',
                   ),
@@ -340,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                   ),
                   const SizedBox(height: 16),
-                  _SectionTitle(
+                  const _SectionTitle(
                     title: 'Genres',
                     subtitle: 'Open dedicated category screens',
                   ),
@@ -387,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  _SectionTitle(
+                  const _SectionTitle(
                     title: 'Library',
                     subtitle: 'All movies and series',
                   ),
@@ -446,3 +583,5 @@ class _HomeData {
   final List<Movie> recommended;
   final List<Movie> allMovies;
 }
+
+

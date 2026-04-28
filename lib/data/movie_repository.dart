@@ -1,12 +1,15 @@
 ﻿import 'dart:async';
 
 import '../models/genre.dart';
+import '../models/live_title.dart';
 import '../models/movie.dart';
 import '../models/movie_feed.dart';
+import 'live_catalog_service.dart';
 import 'mock_movies.dart';
 
 class MovieRepository {
   final MovieFeed _feed = MovieFeed.fromJson(mockMovieFeedJson);
+  final LiveCatalogService _liveCatalogService = const LiveCatalogService();
 
   List<Movie> get _movies => _feed.results;
 
@@ -29,6 +32,10 @@ class MovieRepository {
     return _movies.where((movie) => movie.isSeries).toList();
   }
 
+  Future<List<LiveTitle>> fetchLiveTrendingTitles() {
+    return _liveCatalogService.fetchLiveTrending();
+  }
+
   Future<List<Genre>> fetchGenres() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     final genres = <String>{};
@@ -49,10 +56,7 @@ class MovieRepository {
   }
 
   List<Movie> getSimilarMovies(Movie source) {
-    return _movies
-        .where((movie) => movie.id != source.id && movie.genre == source.genre)
-        .take(4)
-        .toList();
+    return _movies.where((movie) => movie.id != source.id && movie.genre == source.genre).take(4).toList();
   }
 
   String _genreImage(String genre) {
